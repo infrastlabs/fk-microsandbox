@@ -79,7 +79,7 @@ jobs:
       #     submodules: true
       - name: Init git
         run: |
-          apt.sh git jq;
+          apt.sh git jq patch;
           # INFO
           pwd && ls -l
           free -h; df -h; ip a |grep inet; uname -a;
