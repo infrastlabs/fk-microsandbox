@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [ "main", "dev", "sam-custom" ]
     tags: ["v*"]
 
 concurrency:
@@ -24,8 +25,6 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     # needs: [build-kernel, build-agentd-aarch64]
-    if: always()
-    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -60,11 +59,54 @@ jobs:
           #   napi_target: aarch64-apple-darwin
           #   node_file: microsandbox.darwin-arm64.node
           #   npm_dir: darwin-arm64
+    if: always()
+    runs-on: ${{ matrix.runner }}
+      # image: debian:stretch
+        # core-debian-9/10/11 #deb11.notes_rust_cache:ok; deb10:TODO; deb9:rust.build:ok=>ghRelease:bad glibc for node20
+        # core-ubuntu-16/18/20/22 #ubt22:ok; ubt20.TODO; ubt18:rust.build:ok=>ghRelease.同deb9; ubt16:rustInit=>curl: option --retry-connrefused: is unknown
+      # glib2.28@deb10 [2.31@ubt20; 2.31@same.deb11]; deb9.224/ubt16.223;
+        # ubt26-2.43|ubt24-2.39|ubt22-2.35|ubt20-2.31|ubt18-2.27|ubt16-2.23|ubt14-2.19
+        # deb13-2.41|deb12-2.36|deb11-2.31|deb10-2.28|deb9-2.24|deb8-2.19@2015
+    container:
+      # image: infrastlabs/x11-base:core-ubuntu-18.04 #core-debian-10 deb9
+      image: registry.cn-shenzhen.aliyuncs.com/infrastlabs/x11-base:core-debian-9 #core-ubuntu-18.04
+      # --network host err: --network github_network_d8751a64d59f4356a176883d2cf5adf7 --network host --privileged
+      options: --privileged
 
     steps:
       # - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       #   with:
       #     submodules: true
+      - name: Init git
+        run: |
+          apt.sh git jq;
+          # INFO
+          pwd && ls -l
+          free -h; df -h; ip a |grep inet; uname -a;
+          # docker version
+          # docker image prune -a -f; df -h
+      # - uses: actions/checkout@v4 #v4.node20.glibcErr >v2; 还是node20:得glib2.28@deb10 [2.31@ubt20]
+      - name: Checkout code manually
+        run: |
+          git config --global --add safe.directory /__w/fk-a3s-box/fk-a3s-box
+          git clone https://github.com/${{ github.repository }} .
+          git checkout ${{ github.sha }}
+
+      - name: Init submodules
+        run: |
+          git config --global --add safe.directory /__w/fk-a3s-box/fk-a3s-box
+          git -c http.extraheader= submodule update --init --recursive
+          # 
+          # https://www.tutorialpedia.org/blog/how-do-i-deal-with-certificates-using-curl-while-trying-to-access-an-https-url/
+          # update-ca-certificates #for rust-toolchain's curl, 加上后还不行(deb10/11, ubt10)
+          # https://curl.se/docs/caextract.html
+          cd /etc/ssl/certs; curl -O -k -fSL https://curl.se/ca/cacert-2026-05-14.pem
+          ls -lh |wc
+          update-ca-certificates
+          # 
+          # replace the static's curl
+          apt update
+          apt -y install --reinstall curl
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
@@ -200,54 +242,97 @@ jobs:
           # esac
           # cp "build/$go_ffi_file" "artifacts/$bundle_name"
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-${{ matrix.target }}
-          path: artifacts/
+      # - name: Upload artifacts
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      #   with:
+      #     name: release-${{ matrix.target }}
+      #     path: artifacts/
+
+      - name: Create or get release
+        id: create_release
+        run: |
+          TAG_NAME=v26.06 #${GITHUB_REF#refs/tags/}
+          # 1. 先尝试查询是否已存在
+          existing_response=$(curl -L \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG_NAME" 2>/dev/null || echo "")
+          release_id=$(echo "$existing_response" | jq -r '.id // empty')
+          if [ -n "$release_id" ] && [ "$release_id" != "null" ]; then
+            # 2. 已存在，直接复用
+            echo "release_id=$release_id" >> $GITHUB_OUTPUT
+            echo "Found existing release with ID: $release_id"
+          else
+            # 3. 不存在，创建新 Release
+            echo "Release not found, creating new one..."
+            create_response=$(curl -L -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/${{ github.repository }}/releases \
+              -d "{
+                \"tag_name\": \"$TAG_NAME\",
+                \"name\": \"Release $TAG_NAME\",
+                \"body\": \"Release notes for $TAG_NAME\",
+                \"draft\": false,
+                \"prerelease\": false
+              }")
+            release_id=$(echo "$create_response" | jq -r '.id')
+            echo "release_id=$release_id" >> $GITHUB_OUTPUT
+            echo "Created new release with ID: $release_id"
+          fi
+
+      - name: Upload Asset
+        run: |
+          F=${{ env.ASSET }}
+          curl -L -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/octet-stream" \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.release_id }}/assets?name=$F" \
+            --data-binary @./$F
+
+
 
   # ---------------------------------------------------------------------------
   # Assemble: collect all artifacts, generate checksums, create GitHub release
   # ---------------------------------------------------------------------------
-  assemble:
-    name: Assemble Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+  # assemble:
+  #   name: Assemble Release
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+  #     - name: Download all artifacts
+  #       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+  #       with:
+  #         path: release-artifacts
+  #         pattern: release-*
+  #         merge-multiple: true
+  #     - name: Copy install script
+  #       if: hashFiles('scripts/install.sh') != ''
+  #       run: cp scripts/install.sh release-artifacts/install.sh
+  #     - name: Generate checksums
+  #       working-directory: release-artifacts
+  #       run: sha256sum * > checksums.sha256
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: release-artifacts
-          pattern: release-*
-          merge-multiple: true
-
-      - name: Copy install script
-        if: hashFiles('scripts/install.sh') != ''
-        run: cp scripts/install.sh release-artifacts/install.sh
-
-      - name: Generate checksums
-        working-directory: release-artifacts
-        run: sha256sum * > checksums.sha256
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Auto-prerelease for rc / alpha / beta / dev tags so consumers
-          # querying /releases/latest (e.g. install.microsandbox.dev) don't
-          # accidentally promote them. Matches v0.5.0-rc-1, v1.2.3-rc1,
-          # v1.0.0-alpha.4, etc.
-          PRERELEASE=""
-          if [[ "${{ github.ref_name }}" =~ -(rc|alpha|beta|dev) ]]; then
-            PRERELEASE="--prerelease"
-          fi
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
-            --generate-notes \
-            $PRERELEASE \
-            release-artifacts/*
+  #     - name: Create GitHub Release
+  #       env:
+  #         GH_TOKEN: ${{ github.token }}
+  #       run: |
+  #         # Auto-prerelease for rc / alpha / beta / dev tags so consumers
+  #         # querying /releases/latest (e.g. install.microsandbox.dev) don't
+  #         # accidentally promote them. Matches v0.5.0-rc-1, v1.2.3-rc1,
+  #         # v1.0.0-alpha.4, etc.
+  #         PRERELEASE=""
+  #         if [[ "${{ github.ref_name }}" =~ -(rc|alpha|beta|dev) ]]; then
+  #           PRERELEASE="--prerelease"
+  #         fi
+  #         gh release create "${{ github.ref_name }}" \
+  #           --title "${{ github.ref_name }}" \
+  #           --generate-notes \
+  #           $PRERELEASE \
+  #           release-artifacts/*
 
 
 
