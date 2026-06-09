@@ -19,78 +19,11 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Build kernel.c on Linux for macOS libkrunfw linking
-  # ---------------------------------------------------------------------------
-  build-kernel:
-    name: Build kernel.c (aarch64)
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: true
-
-      - name: Cache kernel.c
-        id: cache-kernel
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: vendor/libkrunfw/kernel.c
-          key: kernel-c-aarch64-${{ hashFiles('vendor/libkrunfw/**') }}
-
-      - name: Install kernel build deps
-        if: steps.cache-kernel.outputs.cache-hit != 'true'
-        run: sudo apt-get update && sudo apt-get install -y libcap-ng-dev gcc make flex bison libelf-dev bc python3-pyelftools
-
-      - name: Build kernel.c
-        if: steps.cache-kernel.outputs.cache-hit != 'true'
-        run: |
-          cd vendor/libkrunfw
-          make -j$(nproc)
-
-      - name: Upload kernel.c
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: kernel-c-aarch64
-          path: vendor/libkrunfw/kernel.c
-
-  # ---------------------------------------------------------------------------
-  # Build agentd on Linux for macOS packaging
-  # ---------------------------------------------------------------------------
-  build-agentd-aarch64:
-    name: Build agentd (aarch64-linux-musl)
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: true
-
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          cache-bin: false
-
-      - name: Install agentd build deps
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-      - name: Build agentd
-        run: |
-          rustup target add aarch64-unknown-linux-musl
-          cargo build --release --manifest-path crates/agentd/Cargo.toml --target aarch64-unknown-linux-musl
-          mkdir -p build
-          cp target/aarch64-unknown-linux-musl/release/agentd build/agentd
-
-      - name: Upload agentd
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: agentd-aarch64-linux-musl
-          path: build/agentd
-
-  # ---------------------------------------------------------------------------
   # Build
   # ---------------------------------------------------------------------------
   build:
     name: Build (${{ matrix.target }})
-    needs: [build-kernel, build-agentd-aarch64]
+    # needs: [build-kernel, build-agentd-aarch64]
     if: always()
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -107,37 +40,37 @@ jobs:
             napi_target: x86_64-unknown-linux-gnu
             node_file: microsandbox.linux-x64-gnu.node
             npm_dir: linux-x64-gnu
-          - target: linux-aarch64
-            runner: ubuntu-24.04-arm
-            arch: aarch64
-            os: linux
-            agentd_target: aarch64-unknown-linux-musl
-            libkrunfw_file: libkrunfw.so.5.2.1
-            libkrunfw_asset: libkrunfw-linux-aarch64.so
-            napi_target: aarch64-unknown-linux-gnu
-            node_file: microsandbox.linux-arm64-gnu.node
-            npm_dir: linux-arm64-gnu
-          - target: darwin-aarch64
-            runner: macos-14
-            arch: aarch64
-            os: darwin
-            agentd_target: ""
-            libkrunfw_file: libkrunfw.5.dylib
-            libkrunfw_asset: libkrunfw-darwin-aarch64.dylib
-            napi_target: aarch64-apple-darwin
-            node_file: microsandbox.darwin-arm64.node
-            npm_dir: darwin-arm64
+          # - target: linux-aarch64
+          #   runner: ubuntu-24.04-arm
+          #   arch: aarch64
+          #   os: linux
+          #   agentd_target: aarch64-unknown-linux-musl
+          #   libkrunfw_file: libkrunfw.so.5.2.1
+          #   libkrunfw_asset: libkrunfw-linux-aarch64.so
+          #   napi_target: aarch64-unknown-linux-gnu
+          #   node_file: microsandbox.linux-arm64-gnu.node
+          #   npm_dir: linux-arm64-gnu
+          # - target: darwin-aarch64
+          #   runner: macos-14
+          #   arch: aarch64
+          #   os: darwin
+          #   agentd_target: ""
+          #   libkrunfw_file: libkrunfw.5.dylib
+          #   libkrunfw_asset: libkrunfw-darwin-aarch64.dylib
+          #   napi_target: aarch64-apple-darwin
+          #   node_file: microsandbox.darwin-arm64.node
+          #   npm_dir: darwin-arm64
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: true
+      # - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      #   with:
+      #     submodules: true
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          cache-bin: false
+      # - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      #   with:
+      #     cache-bin: false
 
       # -- Linux build deps --
       - name: Install build deps (Linux)
@@ -154,20 +87,20 @@ jobs:
           cp target/${{ matrix.agentd_target }}/release/agentd build/agentd
 
       # -- agentd (macOS: download prebuilt Linux artifact) --
-      - name: Download agentd (macOS)
-        if: matrix.os == 'darwin'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: agentd-aarch64-linux-musl
-          path: build/
+      # - name: Download agentd (macOS)
+      #   if: matrix.os == 'darwin'
+      #   uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      #   with:
+      #     name: agentd-aarch64-linux-musl
+      #     path: build/
 
       # -- libkrunfw (cached) --
-      - name: Cache libkrunfw
-        id: cache-libkrunfw
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: build/libkrunfw*
-          key: libkrunfw-${{ matrix.target }}-${{ hashFiles('vendor/libkrunfw/**') }}
+      # - name: Cache libkrunfw
+      #   id: cache-libkrunfw
+      #   uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      #   with:
+      #     path: build/libkrunfw*
+      #     key: libkrunfw-${{ matrix.target }}-${{ hashFiles('vendor/libkrunfw/**') }}
 
       - name: Build libkrunfw (Linux)
         if: steps.cache-libkrunfw.outputs.cache-hit != 'true' && matrix.os == 'linux'
@@ -181,23 +114,22 @@ jobs:
           ln -sf libkrunfw.so.${{ env.LIBKRUNFW_VERSION }} libkrunfw.so.${{ env.LIBKRUNFW_ABI }}
           ln -sf libkrunfw.so.${{ env.LIBKRUNFW_ABI }} libkrunfw.so
 
-      - name: Download kernel.c (macOS)
-        if: steps.cache-libkrunfw.outputs.cache-hit != 'true' && matrix.os == 'darwin'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: kernel-c-aarch64
-          path: vendor/libkrunfw/
-
-      - name: Build libkrunfw (macOS)
-        if: steps.cache-libkrunfw.outputs.cache-hit != 'true' && matrix.os == 'darwin'
-        run: |
-          cd vendor/libkrunfw
-          cc -fPIC -DABI_VERSION=${{ env.LIBKRUNFW_ABI }} -shared -o libkrunfw.${{ env.LIBKRUNFW_ABI }}.dylib kernel.c
-          cd ../..
-          mkdir -p build
-          cp vendor/libkrunfw/libkrunfw.${{ env.LIBKRUNFW_ABI }}.dylib build/
-          cd build
-          ln -sf libkrunfw.${{ env.LIBKRUNFW_ABI }}.dylib libkrunfw.dylib
+      # - name: Download kernel.c (macOS)
+      #   if: steps.cache-libkrunfw.outputs.cache-hit != 'true' && matrix.os == 'darwin'
+      #   uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      #   with:
+      #     name: kernel-c-aarch64
+      #     path: vendor/libkrunfw/
+      # - name: Build libkrunfw (macOS)
+      #   if: steps.cache-libkrunfw.outputs.cache-hit != 'true' && matrix.os == 'darwin'
+      #   run: |
+      #     cd vendor/libkrunfw
+      #     cc -fPIC -DABI_VERSION=${{ env.LIBKRUNFW_ABI }} -shared -o libkrunfw.${{ env.LIBKRUNFW_ABI }}.dylib kernel.c
+      #     cd ../..
+      #     mkdir -p build
+      #     cp vendor/libkrunfw/libkrunfw.${{ env.LIBKRUNFW_ABI }}.dylib build/
+      #     cd build
+      #     ln -sf libkrunfw.${{ env.LIBKRUNFW_ABI }}.dylib libkrunfw.dylib
 
       # -- msb --
       - name: Build msb
@@ -218,75 +150,18 @@ jobs:
         run: |
           cargo build --release -p microsandbox-go
           mkdir -p build
-          if [ "${{ matrix.os }}" = "darwin" ]; then
-            cp target/release/libmicrosandbox_go_ffi.dylib build/
-          else
-            cp target/release/libmicrosandbox_go_ffi.so build/
-          fi
+          cp target/release/libmicrosandbox_go_ffi.so build/
+          # if [ "${{ matrix.os }}" = "darwin" ]; then
+          #   cp target/release/libmicrosandbox_go_ffi.dylib build/
+          # else
+          #   cp target/release/libmicrosandbox_go_ffi.so build/
+          # fi
 
       # -- macOS codesign --
-      - name: Codesign msb
-        if: matrix.os == 'darwin'
-        run: codesign --entitlements msb-entitlements.plist --force -s - build/msb
+      # - name: Codesign msb
+      #   if: matrix.os == 'darwin'
+      #   run: codesign --entitlements msb-entitlements.plist --force -s - build/msb
 
-      # -- Node SDK --
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 22
-
-      - name: Build Node SDK
-        working-directory: sdk/node-ts
-        run: |
-          npm ci
-          npm run build:native -- --target ${{ matrix.napi_target }}
-          npm run build:ts
-
-      - name: Prepare Node platform package
-        working-directory: sdk/node-ts
-        run: node scripts/prepare-platform-package.mjs ${{ matrix.npm_dir }}
-
-      - name: Upload Node SDK artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: node-sdk-${{ matrix.npm_dir }}
-          path: |
-            sdk/node-ts/native/${{ matrix.node_file }}
-            sdk/node-ts/native/index.cjs
-            sdk/node-ts/native/index.d.ts
-            sdk/node-ts/npm/${{ matrix.npm_dir }}/${{ matrix.node_file }}
-            sdk/node-ts/npm/${{ matrix.npm_dir }}/bin/msb
-            sdk/node-ts/npm/${{ matrix.npm_dir }}/lib/*
-
-      # -- Python SDK --
-      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
-        with:
-          enable-cache: true
-          cache-dependency-glob: "sdk/python/uv.lock"
-
-      - name: Stage runtime bundle (Python SDK)
-        # Ship only the canonical libkrunfw filename — _runtime.py resolves
-        # to that exact name. Maturin would dereference symlinks and bloat
-        # the wheel by ~40MB on Linux / ~20MB on macOS for no benefit.
-        run: |
-          mkdir -p sdk/python/microsandbox/_bundled/bin
-          mkdir -p sdk/python/microsandbox/_bundled/lib
-          cp build/msb sdk/python/microsandbox/_bundled/bin/
-          cp build/${{ matrix.libkrunfw_file }} sdk/python/microsandbox/_bundled/lib/
-
-      - name: Build Python wheel
-        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
-        with:
-          working-directory: sdk/python
-          command: build
-          args: --release --out dist
-          manylinux: ${{ matrix.os == 'linux' && '2_28' || 'off' }}
-          before-script-linux: dnf install -y libcap-ng-devel
-
-      - name: Upload Python SDK wheel
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: python-sdk-${{ matrix.target }}
-          path: sdk/python/dist/*.whl
 
       # -- Stage release artifacts --
       - name: Stage artifacts
@@ -316,14 +191,14 @@ jobs:
           tar -czf artifacts/microsandbox-${{ matrix.target }}.tar.gz \
             -C build msb ${{ matrix.libkrunfw_file }} $go_ffi_file
 
-          # Standalone Go FFI cdylib named to match sdk/go/internal/bundle/
-          # bundles/ so the go-sdk-tag job can drop it in directly.
-          case "${{ matrix.target }}" in
-            linux-x86_64)   bundle_name=libmicrosandbox_go_ffi-linux-amd64.so ;;
-            linux-aarch64)  bundle_name=libmicrosandbox_go_ffi-linux-arm64.so ;;
-            darwin-aarch64) bundle_name=libmicrosandbox_go_ffi-darwin-arm64.dylib ;;
-          esac
-          cp "build/$go_ffi_file" "artifacts/$bundle_name"
+          # # Standalone Go FFI cdylib named to match sdk/go/internal/bundle/
+          # # bundles/ so the go-sdk-tag job can drop it in directly.
+          # case "${{ matrix.target }}" in
+          #   linux-x86_64)   bundle_name=libmicrosandbox_go_ffi-linux-amd64.so ;;
+          #   linux-aarch64)  bundle_name=libmicrosandbox_go_ffi-linux-arm64.so ;;
+          #   darwin-aarch64) bundle_name=libmicrosandbox_go_ffi-darwin-arm64.dylib ;;
+          # esac
+          # cp "build/$go_ffi_file" "artifacts/$bundle_name"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -374,461 +249,5 @@ jobs:
             $PRERELEASE \
             release-artifacts/*
 
-  # ---------------------------------------------------------------------------
-  # Sync mintlify branch to the released commit
-  #
-  # mintlify is the docs deploy branch. it tracks the released commit but may
-  # also carry docs that were merged into it directly. we merge the release
-  # commit forward instead of hard-resetting, so those docs survive. a clean
-  # merge is pushed straight to mintlify; a conflicting merge opens a pr so the
-  # releaser resolves it by hand instead of losing work silently.
-  # ---------------------------------------------------------------------------
-  sync-mintlify:
-    name: Sync mintlify branch
-    needs: assemble
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          ref: mintlify
-          fetch-depth: 0
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge release commit into mintlify
-        id: merge
-        run: |
-          if git merge --no-edit ${{ github.sha }}; then
-            echo "result=clean" >> "$GITHUB_OUTPUT"
-          else
-            git merge --abort
-            echo "result=conflict" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Push merged mintlify
-        if: steps.merge.outputs.result == 'clean'
-        run: git push origin HEAD:refs/heads/mintlify
-
-      - name: Open reconciliation PR on conflict
-        if: steps.merge.outputs.result == 'conflict'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          branch="mintlify-sync-${{ github.ref_name }}"
-          git push --force origin ${{ github.sha }}:refs/heads/"$branch"
-          gh pr create \
-            --base mintlify \
-            --head "$branch" \
-            --title "sync mintlify to ${{ github.ref_name }}" \
-            --body "Releasing ${{ github.ref_name }} could not merge into mintlify cleanly. mintlify carries docs that conflict with this release. Resolve the conflicts and merge to publish the released docs."
-
-  # ---------------------------------------------------------------------------
-  # Update Homebrew formula in the tap repo
-  # ---------------------------------------------------------------------------
-  update-homebrew:
-    name: Update Homebrew Formula
-    needs: assemble
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dispatch to homebrew tap
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_PAT }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          gh api repos/superradcompany/homebrew-tap/dispatches \
-            -f event_type=update-formula \
-            -f "client_payload[version]=$VERSION"
-
-  # ---------------------------------------------------------------------------
-  # Publish Node SDK to npm
-  # ---------------------------------------------------------------------------
-  npm-publish:
-    name: Publish npm packages
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      - name: Download Node SDK artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: node-artifacts
-          pattern: node-sdk-*
-
-      - name: Place binaries and update generated files
-        run: |
-          # Copy prepared platform package payloads.
-          for dir in darwin-arm64 linux-x64-gnu linux-arm64-gnu; do
-            mkdir -p "sdk/node-ts/npm/$dir/bin" "sdk/node-ts/npm/$dir/lib"
-            cp "node-artifacts/node-sdk-$dir/npm/$dir"/microsandbox.*.node "sdk/node-ts/npm/$dir/"
-            cp "node-artifacts/node-sdk-$dir/npm/$dir/bin/msb" "sdk/node-ts/npm/$dir/bin/"
-            cp "node-artifacts/node-sdk-$dir/npm/$dir/lib/"* "sdk/node-ts/npm/$dir/lib/"
-            # GitHub Actions artifacts strip Unix exec bits; restore before publish
-            # so the published tarball carries 0755 on the binary.
-            chmod +x "sdk/node-ts/npm/$dir/bin/msb"
-          done
-
-          # Copy napi-generated bindings into the root package's native/ dir
-          # (use darwin-arm64; all platforms emit identical JS and types).
-          # napi build emits index.d.ts; rename to index.d.cts so nodenext
-          # resolution finds it next to the .cjs binding.
-          cp node-artifacts/node-sdk-darwin-arm64/native/index.cjs sdk/node-ts/native/index.cjs
-          cp node-artifacts/node-sdk-darwin-arm64/native/index.d.ts sdk/node-ts/native/index.d.cts
-
-      - name: Build TypeScript output (root package dist/)
-        working-directory: sdk/node-ts
-        run: |
-          npm ci
-          npm run build:ts
-
-      - name: Build and publish agent client package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        working-directory: agent-client/typescript
-        run: |
-          npm ci
-          npm run build
-          npm publish --access public
-
-      - name: Publish platform packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          for dir in darwin-arm64 linux-x64-gnu linux-arm64-gnu; do
-            echo "Publishing @superradcompany/microsandbox-$dir..."
-            cd sdk/node-ts/npm/$dir
-            npm publish --access public
-            cd ../../../..
-          done
-
-      - name: Wait for npm to index platform packages
-        run: sleep 30
-
-      - name: Publish root package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        working-directory: sdk/node-ts
-        run: npm publish --access public
-
-  # ---------------------------------------------------------------------------
-  # Refresh sdk/node-ts/package-lock.json against the just-published platform
-  # packages, so main always has lockfile integrity hashes that satisfy
-  # `npm ci`. Opens a PR that the maintainer merges manually.
-  # ---------------------------------------------------------------------------
-  refresh-lockfile:
-    name: Refresh npm lockfile
-    needs: npm-publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          ref: main
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 22
-
-      - name: Wait for npm to index platform packages
-        run: sleep 60
-
-      - name: Regenerate lockfile
-        working-directory: sdk/node-ts
-        run: npm install --package-lock-only --ignore-scripts
-
-      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        with:
-          title: "chore: refresh npm lockfile after ${{ github.ref_name }}"
-          body: |
-            Regenerates `sdk/node-ts/package-lock.json` against the platform packages published for ${{ github.ref_name }}, so `npm ci` keeps working on main.
-          branch: refresh-lockfile-${{ github.ref_name }}
-          commit-message: "chore: refresh npm lockfile after ${{ github.ref_name }}"
-          base: main
-          add-paths: sdk/node-ts/package-lock.json
-          delete-branch: true
-
-  # ---------------------------------------------------------------------------
-  # Publish MCP server to npm
-  # ---------------------------------------------------------------------------
-  mcp-publish:
-    name: Publish MCP server
-    needs: npm-publish
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: true
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      - name: Build and publish MCP server
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        working-directory: mcp
-        run: |
-          rm -f package-lock.json
-          npm install
-          npm run build
-          npm publish --access public
-
-  # ---------------------------------------------------------------------------
-  # Publish Rust crates to crates.io
-  # ---------------------------------------------------------------------------
-  crates-publish:
-    name: Publish crates
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: true
-
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          for crate in \
-            microsandbox-utils \
-            microsandbox-protocol \
-            microsandbox-agent-client \
-            microsandbox-agentd \
-            microsandbox-db \
-            microsandbox-migration \
-            microsandbox-image \
-            microsandbox-filesystem \
-            microsandbox-network \
-            microsandbox-metrics \
-            microsandbox-metrics-collector \
-            microsandbox-runtime \
-            microsandbox \
-            microsandbox-cli; do
-            echo "Publishing $crate..."
-            cargo publish -p "$crate" --no-verify
-            sleep 60
-          done
-
-  # ---------------------------------------------------------------------------
-  # Publish Python SDK to PyPI
-  # ---------------------------------------------------------------------------
-  pypi-publish:
-    name: Publish Python SDK
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-    environment:
-      name: pypi
-      url: https://pypi.org/p/microsandbox
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
-
-      - name: Download Python SDK wheels
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: dist
-          pattern: python-sdk-*
-          merge-multiple: true
-
-      - name: List wheels
-        run: ls -lh dist/
-
-      - name: Publish to PyPI
-        run: uv publish dist/*.whl
-
-  # ---------------------------------------------------------------------------
-  # Publish Go SDK by populating embedded bundles and creating the
-  # subdirectory module tag.
-  #
-  # Go modules in subdirectories use prefixed tags (`sdk/go/vX.Y.Z`) so
-  # `go get .../sdk/go@vX.Y.Z` resolves. proxy.golang.org fetches the
-  # tagged commit's source tree, so the per-platform FFI .so/.dylib must
-  # be committed under sdk/go/internal/bundle/bundles/ on that commit.
-  #
-  # main keeps 0-byte sentinel bundles; this job lays a one-off release
-  # commit on top of GITHUB_SHA with the real binaries, tags it, and
-  # pushes only the tag. The release commit is reachable solely via the
-  # tag, never via a branch (wasmtime-go's distribution pattern).
-  # ---------------------------------------------------------------------------
-  go-sdk-tag:
-    name: Tag Go SDK module
-    needs: assemble
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-
-      - name: Download per-platform release artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: release-dl
-          pattern: release-*
-          merge-multiple: true
-
-      - name: Populate embedded bundles and tag
-        run: |
-          set -euo pipefail
-          ROOT_TAG="${GITHUB_REF_NAME}"          # e.g. v0.4.6
-          GO_TAG="sdk/go/${ROOT_TAG}"
-          if git rev-parse "refs/tags/${GO_TAG}" >/dev/null 2>&1; then
-            echo "tag ${GO_TAG} already exists — skipping"
-            exit 0
-          fi
-
-          # Drop the platform binaries into the embed dir, replacing the
-          # 0-byte sentinels committed on main.
-          install -m644 release-dl/libmicrosandbox_go_ffi-linux-amd64.so \
-            sdk/go/internal/bundle/bundles/libmicrosandbox_go_ffi-linux-amd64.so
-          install -m644 release-dl/libmicrosandbox_go_ffi-linux-arm64.so \
-            sdk/go/internal/bundle/bundles/libmicrosandbox_go_ffi-linux-arm64.so
-          install -m644 release-dl/libmicrosandbox_go_ffi-darwin-arm64.dylib \
-            sdk/go/internal/bundle/bundles/libmicrosandbox_go_ffi-darwin-arm64.dylib
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sdk/go/internal/bundle/bundles/
-          git commit -m "release: Go SDK ${ROOT_TAG} (populate embedded FFI bundles)"
-          git tag -a "${GO_TAG}" -m "Go SDK ${ROOT_TAG}" HEAD
-          git push origin "${GO_TAG}"
-
-      - name: Warm Go module proxy
-        # Force proxy.golang.org and sum.golang.org to ingest the new
-        # tag now instead of waiting for their scheduled discovery, which
-        # can take 10-60 minutes and leaves `go get @<new-version>`
-        # returning 404 for users on default GOPROXY in the meantime.
-        run: |
-          ROOT_TAG="${GITHUB_REF_NAME}"
-          MODULE="github.com/superradcompany/microsandbox/sdk/go"
-          curl -sSf "https://proxy.golang.org/${MODULE}/@v/${ROOT_TAG}.info" >/dev/null || true
-          curl -sSf "https://proxy.golang.org/${MODULE}/@v/${ROOT_TAG}.mod"  >/dev/null || true
-          curl -sSf "https://sum.golang.org/lookup/${MODULE}@${ROOT_TAG}"    >/dev/null || true
-
-  # ---------------------------------------------------------------------------
-  # Publish Docker image to GHCR
-  # ---------------------------------------------------------------------------
-  # Build per-arch Docker images and push digests
-  # ---------------------------------------------------------------------------
-  docker-build:
-    name: Docker (${{ matrix.arch }})
-    needs: build
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-            artifact: release-linux-x86_64
-            msb_asset: msb-linux-x86_64
-            libkrunfw_asset: libkrunfw-linux-x86_64.so
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            artifact: release-linux-aarch64
-            msb_asset: msb-linux-aarch64
-            libkrunfw_asset: libkrunfw-linux-aarch64.so
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ${{ matrix.artifact }}
-          path: release-artifacts
-
-      - name: Stage binaries
-        run: |
-          mkdir -p packaging/docker/build/${{ matrix.arch }}
-          cp release-artifacts/${{ matrix.msb_asset }} packaging/docker/build/${{ matrix.arch }}/msb
-          cp release-artifacts/${{ matrix.libkrunfw_asset }} packaging/docker/build/${{ matrix.arch }}/libkrunfw.so.${{ env.LIBKRUNFW_VERSION }}
-          chmod +x packaging/docker/build/${{ matrix.arch }}/msb
-
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-
-      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
-        id: push
-        with:
-          context: packaging/docker
-          platforms: linux/${{ matrix.arch }}
-          cache-from: type=gha,scope=${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
-          outputs: type=image,name=ghcr.io/superradcompany/microsandbox,push-by-digest=true,name-canonical=true,push=true
-
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          echo "${{ steps.push.outputs.digest }}" > /tmp/digests/${{ matrix.arch }}.txt
-
-      - name: Upload digest
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: docker-digest-${{ matrix.arch }}
-          path: /tmp/digests/${{ matrix.arch }}.txt
-
-  # ---------------------------------------------------------------------------
-  # Combine per-arch images into a multi-arch manifest
-  # ---------------------------------------------------------------------------
-  docker-manifest:
-    name: Docker manifest
-    needs: docker-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download digests
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: digests
-          pattern: docker-digest-*
-          merge-multiple: true
-
-      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
-        id: meta
-        with:
-          images: ghcr.io/superradcompany/microsandbox
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-
-      - name: Create multi-arch manifest
-        run: |
-          AMD64_DIGEST=$(cat digests/amd64.txt)
-          ARM64_DIGEST=$(cat digests/arm64.txt)
-          IMAGE=ghcr.io/superradcompany/microsandbox
-
-          for TAG in $(echo "${{ steps.meta.outputs.tags }}"); do
-            docker buildx imagetools create -t "$TAG" \
-              "${IMAGE}@${AMD64_DIGEST}" \
-              "${IMAGE}@${ARM64_DIGEST}"
-          done
