@@ -286,12 +286,13 @@ jobs:
       - name: Upload Asset
         run: |
           # ${{ matrix.target }}=linux-x86_64
+          # artifacts/microsandbox-linux-x86_64.tar.gz
           F=microsandbox-linux-x86_64.tar.gz #${{ env.ASSET }}
           curl -L -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/octet-stream" \
             "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.release_id }}/assets?name=$F" \
-            --data-binary @./$F
+            --data-binary @./artifacts/$F
 
 
 
